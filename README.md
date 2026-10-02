@@ -1,206 +1,191 @@
 ## Description
 
-Simulation d'un procédé de **vaporisation totale d'acétone** : un flux liquide est divisé par un splitter, une fraction est envoyée dans un **Heater** où elle est entièrement vaporisée, le reste part en bypass.
+Simulation d’un procédé **acétone → splitter → heater** avec vaporisation totale
+et options de surchauffe, perte de charge et pompe.
 
-Le programme calcule :
-- la **température d'ébullition** Tb(P) via l'équation d'Antoine (résolution Newton-Raphson, repli sur Brent),
-- la **chaleur latente** ΔH_vap(Tb) par la relation de Watson,
-- la **puissance thermique** du Heater : Q = ṁ·[cp_liq·(Tb − T₀) + ΔH_vap(Tb)],
-- et trace un **diagramme de sensibilité** sur 4 paramètres.
+Le script calcule la puissance thermique nécessaire au heater, la température
+d’ébullition, les contributions sensible / latente / surchauffe, et trace des
+courbes de sensibilité.
 
 ---
 
-## Fichier
+## Fonctionnalités
 
-```
-acetone_heater_param.py
-```
+- Cp liquide dépendant de la température (Rowlinson-Bondi), intégré entre
+  `T_in` et `Tb`.
+- Zone de flash masquée (`NaN`) et ombrée dans les graphiques.
+- Surchauffe optionnelle de la vapeur.
+- Perte de charge du heater optionnelle.
+- Travail de pompe optionnel (indicatif, **non inclus dans Q**).
+- Validation `np.isfinite` de toutes les entrées : `nan` / `inf` refusés.
+- Mode interactif ou ligne de commande.
+- Génération d’une figure de sensibilité : `sensibilites_acetone.png`.
 
-Dépendances : `numpy`, `scipy`, `matplotlib`.
+---
+
+## Installation
+
+Dépendances Python :
 
 ```bash
 pip install numpy scipy matplotlib
-```
+Python 3.8+ recommandé.
 
----
+Utilisation
+Mode interactif (par défaut)
+bash
+python acetone_heater_param_v2.py
+Le programme pose une série de questions. Une valeur par défaut est proposée
+entre crochets ; appuyez sur Entrée pour l’accepter.
 
-## Utilisation
+Mode non interactif
+bash
+python acetone_heater_param_v2.py --flow 50 --ratio 0.7 --P 2 --T 25 --superheat 10 --dP 0.1
+bash
+python acetone_heater_param_v2.py --flow 38 --ratio 0.6 --P 3 --Psource 1 --no-plot
+Arguments en ligne de commande
+Argument	Défaut	Description
+--flow	38.0	Débit massique total avant splitter [kg/h]
+--ratio	0.60	Fraction massique envoyée au heater (0 à 1)
+--P	1.0	Pression d’entrée du heater [atm]
+--T	10.0	Température d’entrée [°C]
+--superheat	0.0	Surchauffe de la vapeur au-dessus de la saturation [K]
+--dP	0.0	Perte de charge du heater [atm]
+--Psource	None	Pression amont de la pompe [atm]. None = pas de pompe
+--Pmin	0.1	Borne min du balayage en pression [atm]
+--Pmax	3.0	Borne max du balayage en pression [atm]
+--npts	60	Nombre de points pour Tb = f(P)
+--no-plot	—	Ne pas tracer / enregistrer les courbes
+Paramètres interactifs
+Le mode interactif demande :
 
-Le script fonctionne en **deux modes**.
+Débit massique total [kg/h]
 
-### 1. Mode interactif (par défaut)
+Pression [atm]
 
-```bash
-python acetone_heater_param.py
-```
+Température d’entrée [°C]
 
-Le programme pose les questions dans le terminal. **Appuyer sur Entrée** accepte la valeur par défaut affichée entre crochets.
+Fraction envoyée au heater (0 à 1)
 
-Exemple de session :
+Surchauffe de la vapeur [K]
 
-```
--- Flux entrant --
-  Debit massique total [kg/h] [38.0] :
-  Pression [atm] [1.0] :
-  Temperature d'entree [C] [10.0] :
+Perte de charge du heater [atm]
 
--- Splitter --
-  Fraction envoyee au Heater (0 a 1) [0.6] :
+Pression amont de la pompe [atm]
 
-  Tracer le diagramme de sensibilite ? [O/n] : o
+Puis il affiche le bilan et propose de tracer le diagramme de sensibilité.
 
--- Domaine de variation de la pression --
-  Pression min [atm] [0.1] :
-  Pression max [atm] [3.0] :
-  Nombre de points [60] :
-```
+Modèle physique
+Propriétés de l’acétone
+Masse molaire : M = 58.08 g/mol
 
-Puis possibilité d'enchaîner sur une **nouvelle simulation** sans quitter le programme.
+Température critique : TC = 508.1 K
 
-### 2. Mode non interactif (arguments CLI)
+Facteur acentrique : OMEGA = 0.307
 
-```bash
-python acetone_heater_param.py --flow 50 --ratio 0.7 --P 2 --T 25 --Pmin 0.2 --Pmax 5
-python acetone_heater_param.py --flow 38 --ratio 0.6 --P 1 --T 10 --no-plot
-```
+Chaleur latente à T_NB : DH_NB = 29.1e3 J/mol
 
----
+Coefficient Antoine : A = 4.42448, B = 1312.253, C = -32.445
 
-## Arguments CLI
+Domaine Antoine : 259.0 K à 507.0 K
 
-| Argument | Type | Défaut | Description |
-|---|---|---|---|
-| `--flow` | float | `38.0` | Débit massique total avant splitter [kg/h] |
-| `--ratio` | float | `0.60` | Fraction massique envoyée au Heater (0 à 1) |
-| `--P` | float | `1.0` | Pression de base du procédé [atm] |
-| `--T` | float | `10.0` | Température d'entrée [°C] |
-| `--Pmin` | float | `0.1` | Borne **inférieure** du balayage en pression [atm] |
-| `--Pmax` | float | `3.0` | Borne **supérieure** du balayage en pression [atm] |
-| `--npts` | int | `60` | Nombre de points pour la courbe Tb = f(P) |
-| `--no-plot` | flag | — | Ne pas tracer les courbes (mode headless) |
+Masse volumique liquide pour la pompe : RHO_LIQ = 790 kg/m³
 
-### Validations
+Point de fusion : T_FREEZE = 178.5 K
 
-- `--flow >= 0`
-- `0 <= --ratio <= 1`
-- `--P > 0`, `--Pmin > 0`, `--Pmax > 0`
-- `--Pmin < --Pmax`
-- `--npts >= 2`
+Cp liquide de référence à 298.15 K : 2.17 kJ/(kg.K)
 
----
+Corrélations utilisées
+Pression de saturation : Antoine
+log10(Psat[bar]) = A - B / (T + C)
 
-## Sortie console
+Température d’ébullition : Newton-Raphson sur ln(Psat) - ln(P),
+avec repli sur Brent.
 
-```
-====================================================
- Entree : 38.00 kg/h | 10.0 C | 1.000 atm
- Splitter : 60.0 % Heater / 40.0 % bypass
-   -> Heater : 22.800 kg/h
-   -> Bypass : 15.200 kg/h
-----------------------------------------------------
- T ebullition (5 it.) : 56.095 C
- Q sensible :    6244.6 W
- Q latente  :   15970.3 W
- Q TOTAL    :   22214.9 W = 22.215 kW = 79974 kJ/h
-====================================================
- Verification Brent : Tb = 56.095 C
- Domaine P balaye   : 0.1 -> 3.0 atm (60 points)
- Figure enregistree : sensibilites_acetone.png
-```
+Chaleur latente : relation de Watson
+dh_vap(T) = DH_NB / M * ((1 - T/TC) / (1 - T_NB/TC))^0.38
 
-Si `T_entrée > T_ébullition`, un **avertissement flash** est affiché : le liquide serait déjà partiellement vaporisé à cette pression, et Q sensible devient négatif (différence d'enthalpie).
+Cp gaz parfait : Shomate, valable de 298 K à 1200 K.
 
----
+Cp liquide : Rowlinson-Bondi, recalé pour imposer
+Cp(298.15 K) = 2.17 kJ/(kg.K).
 
-## Diagramme de sensibilité
+Bilan thermique
+Pour le débit envoyé au heater :
 
-Une figure **2×2** est générée et sauvegardée dans `sensibilites_acetone.png` (répertoire courant).
+text
+Q_sensible = m * ∫ Cp_liq(T) dT   de T_in à Tb
+Q_latente  = m * dh_vap(Tb)
+Q_surchauffe = m * ∫ Cp_gas(T) dT de Tb à T_out   si surchauffe > 0
+Q_total = Q_sensible + Q_latente + Q_surchauffe
+Le travail de pompe est calculé séparément :
 
-| Sous-plot | Courbe | Domaine |
-|---|---|---|
-| Haut-gauche | **Tb = f(P)** (bleu) + **Q = f(P)** (vert, axe droit) | `Pmin → Pmax`, `npts` points |
-| Haut-droit | **Q = f(ratio splitter)** | ratio 0 → 1 |
-| Bas-gauche | **Q = f(débit total)** | 1 → 2×débit base |
-| Bas-droit | **Q = f(T entrée)** | −20 → 50 °C |
+text
+W_pompe = m / RHO_LIQ * (P - P_source) * ATM * 1e5 / eta_pompe
+Il est indicatif et n’est pas ajouté à Q_total.
 
-Sur le sous-plot haut-gauche, la température d'entrée est tracée en **pointillé rouge** comme référence.
+Perte de charge
+La vaporisation est évaluée à la pression moyenne : P_vap = P - dP/2.
 
----
+La sortie heater est à : P_out = P - dP.
 
-## Modèle physique
+Zone de flash
+Si T_in > Tb, le liquide serait en flash à cette pression.
+Le modèle suppose un liquide sous-refroidi : Q n’est alors pas valide.
+Dans les graphiques, cette zone est masquée (NaN) et ombrée en rouge.
 
-### Équation d'Antoine (NIST)
+Sorties
+Rapport console
+Le script affiche :
 
-$$\log_{10} P_{sat}[\text{bar}] = A - \frac{B}{T + C}$$
+Débit total, température et pression d’entrée
 
-avec `A = 4.42448`, `B = 1312.253`, `C = −32.445`, valable **259 K à 507 K**.
+Répartition splitter : heater / bypass
 
-### Résolution de Tb
+Température d’ébullition
 
-1. **Newton-Raphson** sur `f(T) = ln Psat(T) − ln P`
-2. **Repli sur Brent** si Newton sort du domaine ou diverge
-3. **Vérification indépendante** par `brentq` à la fin
+Cp liquide moyen
 
-### Chaleur latente (Watson)
+Q_sensible, Q_latente, Q_surchauffe, Q_total
 
-$$\Delta H_{vap}(T) = \frac{\Delta H_{nb}}{M} \left[\frac{1 - T/T_c}{1 - T_{nb}/T_c}\right]^{0.38}$$
+Température et pression de sortie heater
 
-avec `ΔH_nb = 29.1 kJ/mol`, `Tc = 508.1 K`, `M = 58.08 g/mol`.
+Travail de pompe indicatif si applicable
 
-### Puissance
+Vérification Brent de Tb
 
-$$Q = \dot{m} \left[ c_{p,liq} (T_b - T_0) + \Delta H_{vap}(T_b) \right]$$
+Figure
+Si le tracé est activé, une figure est enregistrée dans le répertoire courant :
 
-avec `cp_liq = 2.17 kJ/(kg·K)`, `ṁ` en kg/s.
+text
+sensibilites_acetone.png
+Elle contient 4 sous-graphiques :
 
----
+Tb et Q = f(P)
 
-## Données physiques (acétone)
+Q = f(ratio splitter)
 
-| Constante | Valeur | Unité |
-|---|---|---|
-| Masse molaire M | 58.08 | g/mol |
-| Température critique Tc | 508.1 | K |
-| ΔH_vap à T_nb | 29.1 | kJ/mol |
-| cp liquide | 2.17 | kJ/(kg·K) |
-| Antoine A | 4.42448 | — |
-| Antoine B | 1312.253 | K |
-| Antoine C | −32.445 | K |
-| Domaine Antoine | 259 – 507 | K |
+Q = f(débit total)
 
----
+Q = f(T entrée)
 
-## Comportement headless
+Limites et précautions
+Modèle stationnaire.
 
-Sur un serveur sans écran (SSH, CI, Docker), le programme bascule automatiquement en **backend `Agg`** de matplotlib : la figure est sauvegardée mais **pas affichée**. Détection via `DISPLAY` / `WAYLAND_DISPLAY`.
+Vaporisation totale supposée dans le heater.
 
----
+Le bypass n’est pas mélangé à la vapeur en aval : le modèle calcule
+uniquement le heater.
 
-## Exemples
+Cp gaz parfait : Shomate valable 298–1200 K.
 
-```bash
-# Cas de base, mode interactif
-python acetone_heater_param.py
+Cp liquide : Rowlinson-Bondi recalé, domaine de validité limité.
 
-# Cas rapide sans graphique
-python acetone_heater_param.py --flow 38 --ratio 0.6 --P 1 --T 10 --no-plot
+La pompe est indicative et hors bilan thermique du heater.
 
-# Balayage étroit en pression, 100 points
-python acetone_heater_param.py --Pmin 0.5 --Pmax 2.0 --npts 100
+Les entrées nan / inf sont refusées.
 
-# Domaine large
-python acetone_heater_param.py --Pmin 0.05 --Pmax 10
+En zone de flash, Q ne doit pas être utilisé.
 
-# Combinaison complète
-python acetone_heater_param.py --flow 50 --ratio 0.7 --P 1.5 --T 20 \
-                               --Pmin 0.3 --Pmax 4.0 --npts 80
-```
-
----
-
-## Notes
-
-- **Pas de perte de charge** : la pression est supposée identique en amont et dans le Heater.
-- **Vaporisation totale** : le flux envoyé au Heater ressort entièrement vapeur saturée à Tb(P).
-- **Bypass** : le flux non envoyé au Heater reste liquide à T₀ ; aucun mélange aval n'est modélisé ici.
-- Les points hors domaine de validité d'Antoine sont renvoyés en `NaN` dans le balayage (pas de crash du graphe).
+Licence
+Aucune licence n’est spécifiée dans le code source.
