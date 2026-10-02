@@ -1,5 +1,3 @@
-Acetone Splitter + Heater
-
 ## Description
 
 Simulation d'un procédé de **vaporisation totale d'acétone** : un flux liquide est divisé par un splitter, une fraction est envoyée dans un **Heater** où elle est entièrement vaporisée, le reste part en bypass.
